@@ -29,10 +29,15 @@ def xlsx_to_csv(xlsx_file_path, output_folder):
     print("Conversion completed!")
 
 # Example usage
-xlsx_file_path = r"excel\2015.xlsx"
-output_folder = r"csv"
+# xlsx_file_path = r"excel\2015.xlsx"
+# output_folder = r"csv"
 
-xlsx_to_csv(xlsx_file_path, output_folder)
+# xlsx_to_csv(xlsx_file_path, output_folder)
 
 
+greeting = ",הכלב היהודי,"
 
+stripped_greeting = greeting.strip(",")
+
+print(stripped_greeting)
+#ello World

@@ -24,11 +24,11 @@ def get_books_names(doc_file_path):
     check = 0
 
     count = 0
-    book_name = ""
+    book_title = ""
 
     for paragraph in doc.paragraphs:
         count = 0
-        book_name = ""
+        book_title = ""
         all_bold = True
         text = paragraph.text
 
@@ -40,7 +40,7 @@ def get_books_names(doc_file_path):
                 pass
             
             elif run.bold:
-                book_name = book_name + run.text
+                book_title = book_title + run.text
                 
             else:
                 all_bold = False
@@ -67,13 +67,14 @@ def get_books_names(doc_file_path):
                 check = 0
 
         
-        elif book_name:
-            books_title.append(book_name)
+        elif book_title:  
+
+            books_title.append(book_title)
             books +=1
             count_books +=1
             check = 0
             
-            author = get_author(text,book_name)
+            author = get_author(text,book_title)
             
             authors.append(author)
             
@@ -98,6 +99,9 @@ def get_author(paragraph, book_name):
             return word
 
 def book_name_normelized(book_title):
+    book_title = book_title.strip(" ")
+    book_title = book_title.strip(",")
+    print(book_title)
     new_book_title = ""
     for letter in book_title:
         if (ord(letter) < 1400):
@@ -247,12 +251,15 @@ def get_xlsx(doc_file_path):
             
             book_info = search_book_in_database(book_title)
             if (book_info):
-
                 book = []
                 for field in FIELDS:
                     try:
                         if field == "title":
+                            
                             if(book_info[field] is None or book_info[field] == ""):
+                                print("no title adding one")
+                                print(book_title)
+                                
                                 book.append(book_title)
                             else:
                                 book.append(book_info[field])
@@ -279,6 +286,7 @@ def get_xlsx(doc_file_path):
                 book_info = check_book_title(book_title, author)
 
                 if book_info:
+
                     print(f"managed to retrieve the data for: {book_title} under the title: {book_info["title"]}")
                     book = []
                     
@@ -287,10 +295,17 @@ def get_xlsx(doc_file_path):
                     for field in FIELDS:
                         try:
                             if field == "title":
+                                
                                 if(book_info[field] is None or book_info[field] == ""):
+                                    print("no title adding one")
+                                    print(book_title)
+                                    
+                                    
                                     book.append(book_title)
-
-                            book.append(book_info[field])
+                                else:
+                                    book.append(book_info[field])
+                            else:
+                                book.append(book_info[field])
                         except Exception:
                             pass
                     for col_num, item in enumerate(book, start=1):
@@ -310,6 +325,9 @@ def get_xlsx(doc_file_path):
 
                 else:
                     print(f"failed to find the book: {book_title}")
+                    print("adding the title")
+                    print(book_title)
+                    
                     sheet.cell(row=row_num, column=1).value = book_title
                     row_num += 1
                     count += 1
@@ -318,9 +336,10 @@ def get_xlsx(doc_file_path):
 
 
 
+USER_KEY = "8rqp3wBL0YX2yCaNPOSha2bhbrJ2Zd2Fagw8vuGw"
 USER_KEY = "DVQyidFLOAjp12ib92pNJPmflmB5IessOq1CJQDK"
 FIELDS = ['title', 'contributor', 'identifier', 'linkToMarc', 'creator', 'subject',  'thumbnail', 'format', 'date', 'publisher', 'language', 'recordid', 'type', 'source']
-
+# https://api.nli.org.il/openlibrary/search?api_key=8rqp3wBL0YX2yCaNPOSha2bhbrJ2Zd2Fagw8vuGw&query=title,exact,החתול%20שרצה%20להיות%20איש%2c%20
 book_title = "התינוקת מסלובניה"
 # book_title = "הפרעוש: סיפורו המדהים של ליאו מסי"
 book_title = book_title.replace(" ", "%20")
@@ -331,15 +350,15 @@ book_title = "title,exact,"+ book_title
 path = r"docs"
 dir_list = os.listdir(path)
 
-for docs in dir_list:
-    doc_file_path = r"docs\\" + docs
-    print(docs)
-    get_xlsx(doc_file_path)
+# for docs in dir_list:
+#     doc_file_path = r"docs\\" + docs
+#     print(docs)
+#     get_xlsx(doc_file_path)
 
 # doc_file_path = r"docs\done\2015.docx"
-# doc_file_path = r"C:\Users\Ido\Desktop\books-project\docs\done\2017.docx"
+doc_file_path = r"C:\Users\Ido\Desktop\books-project\docs\done\booklist2019.docx"
 
-# get_xlsx(doc_file_path)
+get_xlsx(doc_file_path)
 # books_title, titles, books_in_sheet = get_books_names(doc_file_path)
 # print(books_title)
 
