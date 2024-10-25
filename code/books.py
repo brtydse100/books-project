@@ -1,8 +1,6 @@
-from plistlib import InvalidFileException
 import re
 from window import SentenceComparer
 from docx import Document
-from docx.shared import Pt
 import openpyxl
 import requests
 import xlsxwriter
@@ -10,25 +8,6 @@ import os
 
 from fuzzywuzzy import fuzz
 
-
-def replace_string_in_word(doc_file_path, old_string, new_string):
-    # Open the document
-    doc = Document(doc_file_path)
-
-    # Iterate through paragraphs and replace the text
-    for para in doc.paragraphs:
-        if old_string in para.text:
-            para.text = para.text.replace(old_string, new_string)
-
-    # Iterate through tables and replace the text in each cell
-    for table in doc.tables:
-        for row in table.rows:
-            for cell in row.cells:
-                if old_string in cell.text:
-                    cell.text = cell.text.replace(old_string, new_string)
-
-    # Save the modified document
-    doc.save(doc_file_path)
 
 
 def get_books_names(doc_file_path):
@@ -164,9 +143,9 @@ def get_date(date):
 
 
 def find_book_by_year(found_date=0, year=0):
-    found_date = get_date(found_date)
+    found_date = (str)(get_date(found_date))
     year = (str)(year)
-
+    
     if not found_date:
         return False
 
@@ -176,73 +155,89 @@ def find_book_by_year(found_date=0, year=0):
 
     return True
 
-
-def find_book_by_title(author, book_name, found_title):
+def find_book_by_author(author,book_title, found_title):
 
     book_name_found = found_title.split("/")[0]
 
     new_author = author.replace("-", " ")
     new_author = new_author.split(" ")
-
+    # print(new_author)
+    # print(author)
     for name in new_author:
         if name not in found_title:
             return False
 
-    if book_name in book_name_found:
+    if book_title in book_name_found:
         return True
+    return True
 
+def find_book(author, found_title , found_date = 0, year = 0):
+    if find_book_by_year(found_date, year) and find_book_by_author(author, found_title):
+        return True
     
-    ratio = fuzz.ratio(book_name, book_name_found)
-    if ratio > 80:
+    if find_book_by_year(found_date, year):
         return True
-
 
     return False
+    
 
+    
 
 def api_response(base_url, book_title, author, year):
     response = requests.get(base_url)
     new_books_data = []
-
+    error_mes = []
     if response.status_code == 200 and response.json() != [] and year != 0:
         books_data = response.json()
-        if len(books_data) > 1:
-
-            for book in books_data:
-                book_data = data_organizer([book])
-                try:
-                    found_book = find_book_by_year(book_data["date"], year)
-                except Exception as e:
-                    found_book = False
-                    
-                if found_book:
-                    new_books_data.append(book_data)
-                    
-
-            if new_books_data == []:
-                # print("didnt get a date")
-                for book in books_data:
-                    book_data = data_organizer([book])
-                    found_book = find_book_by_title(author, book_title, book_data["title"])
-                    
-                    if found_book:
-                        new_books_data.append(book_data)
-                        
-
-            if len(new_books_data) > 1:
-                for book in new_books_data:
-                    
-                    found_book = find_book_by_title(author, book_title, book_data["title"])
-                    if found_book:
-                        
-                        return True, book
-
-            if len(new_books_data) == 1:
-                return True, new_books_data[0]
-
+        
         if len(books_data) == 1:
             book_data = data_organizer(books_data)
             return True, book_data
+
+        
+        if len(books_data) > 1:
+            
+            for book in books_data:
+                book_data = data_organizer([book])
+                try:
+                    # found_book = find_book(author, book_data["title"], book_data["date"], year)
+                    found_book = find_book_by_year(book_data["date"], year)
+                except Exception as e:
+                    found_book = False
+
+                if found_book:
+                    new_books_data.append(book_data)
+
+
+            if len(new_books_data) == 0:
+                
+                for book in books_data:
+                    book_data = data_organizer([book])
+                    found_book = find_book_by_author(author,book_title, book_data["title"])
+
+                    if found_book:
+                        new_books_data.append(book_data)
+
+
+                        
+            if len(new_books_data) == 1:
+                return True, new_books_data[0]
+
+
+            if len(new_books_data) > 1:
+                print("found 2 books with the same date")
+
+                for book_data in new_books_data:
+                
+                        found_book = find_book_by_author(author,book_title, book_data["title"])
+                        
+                        if not found_book:
+                            print("found a book with the same date but wrong author")
+                            new_books_data.remove(book_data)
+
+            if len(new_books_data) == 1 or len(new_books_data) > 1:
+                return True, new_books_data[0] 
+
 
     return False, None
 
@@ -262,6 +257,8 @@ def search_book_in_database(book_title, author, year):
             response, data = api_response(url, book_title, author, year)
             if response:
                 return data
+
+            # print(url)
 
     return False
 
@@ -388,7 +385,7 @@ def get_xlsx(doc_file_path):
                     count += 1
 
                 else:
-                    file.write(f"{book_title}\n")
+                    file.write(f"{book_title} / {author}  {year}\n")
                     print(f"didnt find: {book_title} / {author}")
                     sheet.cell(row=row_num, column=1).value = f"{book_title} / {author}"
                     row_num += 1
@@ -450,13 +447,13 @@ FIELDS = [
 
 if __name__ == "__main__":
 
-    # path_to_docx_dir = r"docs"
-    # docx_dir_list = os.listdir(path_to_docx_dir)
+    path_to_docx_dir = r"docs\completed"
+    docx_dir_list = os.listdir(path_to_docx_dir)
 
-    # for docs in docx_dir_list:
-    #     doc_file_path = r"docs\\" + docs
-    #     print(docs)
-    #     get_xlsx(doc_file_path)
+    for docs in docx_dir_list:
+        doc_file_path = r"docs\completed\\" + docs
+        print(docs)
+        get_xlsx(doc_file_path)
 
     # doc_file_path = "docs/2015.docx"
     # books_title, titles, books_in_sheet, authors, years = get_books_names(doc_file_path)
@@ -472,24 +469,14 @@ if __name__ == "__main__":
     #         print(name)
     #         break
 
-    year = 'שדגג תשע"ח' 
+    # year = 'שדגג תשע"ח' 
 
-    print(get_date(year))
+    # print(get_date(year))
         
     path_to_text_dir = r"docs"
     text_dir_list = os.listdir(path_to_text_dir)
 
     # print(author_check("שם-טוב תמי", "מארי קירי שגלתה את הקרניים החזקות בעולם / כתבה תמי שם-טוב"))
-
-# doc_file_path = r"docs\\try.docx"
-
-# for text_file in text_dir_list:
-#     text_file_path = r"text\\" + text_file
-
-#     with open(text_file_path, 'r') as file:
-#         for line in file:
-#             new_string, old_string = line.strip().split("/")
-#             replace_string_in_word(doc_file_path, old_string, new_string)
 
 
 # get_base_url(book_title,author)
