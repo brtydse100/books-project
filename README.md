@@ -12,7 +12,7 @@ text/ - contains the the names of the books the api couldn't find
 
 ## **overview:**
 
-*input for main function "get_all_years":*
+*input for main function "get_all_years()":*
 
 **xlsx_file_path** - the path for the ".xlsx" file
 
