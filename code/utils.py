@@ -4,7 +4,7 @@ import openpyxl
 import requests
 import xlsxwriter
 import os
-from constants import *
+from .constants import *
 
 
 def get_books_names(doc_file_path):
@@ -174,12 +174,20 @@ def find_book(author, found_title, found_date=0, year=0):
 
     return False
 
-
-def api_response(base_url, book_title, author, year):
+def check_api_reponse(base_url):
     response = requests.get(base_url)
-    new_books_data = []
-    if response.status_code == 200 and response.json() != [] and year != 0:
+    if response.status_code == 200 and response.json() != []:
         books_data = response.json()
+        return books_data
+    
+    return False
+        
+    
+def api_response(base_url, book_title = None, author = None, year = 0):
+    books_data = check_api_reponse(base_url)
+    new_books_data = []
+        
+    if books_data:
 
         if len(books_data) == 1:
             book_data = data_organizer(books_data)
@@ -318,6 +326,7 @@ def get_xlsx(docs_file_path, sheet, batch_name, row_num):
     books_title, titles, books_in_sheet, authors, years = get_books_names(
         docs_file_path
     )
+    
     col_num = 0
     count = 0
     row_num = row_num
@@ -332,44 +341,57 @@ def get_xlsx(docs_file_path, sheet, batch_name, row_num):
             year = years[count]
 
             book_info = search_book_in_database(book_title, author, year)
+            
             if book_info:
-                book = []
-
-                for field in FIELDS:
-                    if field in book_info:
-                        if isinstance(book_info[field], list):
-                            x = True
-                            for item in book_info[field]:
-                                if item is not None and x:
-                                    book_info[field] = item
-                                    x = False
-
-                        book.append(book_info[field])
-                    else:
-                        book.append(" ")
-
-                for col_num, item in enumerate(book, start=1):
-
-                    sheet.cell(row=row_num, column=col_num).value = item
-
-                sheet.cell(row=row_num, column=col_num + 1).value = batch_name
-                sheet.cell(row=row_num, column=col_num + 2).value = title
-
-                row_num += 1
-                count += 1
-
+                write_row(book_info,sheet,row_num,batch_name,title)
             else:
-                print(f"didnt find: {book_title} / {author}")
-                sheet.cell(row=row_num, column=1).value = f"{book_title} / {author}"
-                sheet.cell(row=row_num, column=col_num + 1).value = batch_name
-                sheet.cell(row=row_num, column=col_num + 2).value = title
+                write_missing_rows(book_title,author,sheet,col_num,row_num,title,batch_name)
 
-                row_num += 1
-                count += 1
+            row_num += 1
+            count += 1
 
     return count
 
 
+def write_row(book_info, sheet,row_num, batch_name, title):
+    book = []
+
+    for field in FIELDS:
+        if field in book_info:
+            if isinstance(book_info[field], list):
+                x = True
+                for item in book_info[field]:
+                    if item is not None and x:
+                        book_info[field] = item
+                        x = False
+
+            book.append(book_info[field])
+        else:
+            book.append(" ")
+
+    for col_num, item in enumerate(book, start=1):
+
+        sheet.cell(row=row_num, column=col_num).value = item
+
+    sheet.cell(row=row_num, column=col_num + 1).value = batch_name
+    sheet.cell(row=row_num, column=col_num + 2).value = title
+
+
+def write_missing_rows(book_title,author,sheet,col_num,row_num,title,batch_name):
+    print(f"didnt find: {book_title} / {author}")
+    sheet.cell(row=row_num, column=1).value = f"{book_title} / {author}"
+    sheet.cell(row=row_num, column=col_num + 1).value = batch_name
+    sheet.cell(row=row_num, column=col_num + 2).value = title
+
+
+def write_headers(sheet):
+    for col_num, field in enumerate(FIELDS, start=1):
+        sheet.cell(row=1, column=col_num).value = field
+
+        sheet.cell(row=1, column=col_num + 1).value = "book docs year"
+        sheet.cell(row=1, column=col_num + 2).value = "book under title"
+
+        
 def get_all_years(xlsx_file_path, docs_files_path, name="main"):
 
     row_num = 2
@@ -389,12 +411,8 @@ def get_all_years(xlsx_file_path, docs_files_path, name="main"):
     print(f"created a new sheet: {sheet_title}")
 
     # creates headers for the excel sheet
-
-    for col_num, field in enumerate(FIELDS, start=1):
-        sheet.cell(row=1, column=col_num).value = field
-
-    sheet.cell(row=1, column=col_num + 1).value = "book docs year"
-    sheet.cell(row=1, column=col_num + 2).value = "book under title"
+    write_headers(sheet)
+    
     if isinstance(docs_files_path, list):
         for docs_file_path in docs_files_path:
             batch_name = os.path.basename(docs_file_path).replace(".docx", "")
@@ -406,3 +424,33 @@ def get_all_years(xlsx_file_path, docs_files_path, name="main"):
         temp = get_xlsx(docs_files_path, sheet, batch_name, row_num)
         row_num += temp
         workbook.save(xlsx_file_path)
+
+
+def excel_completer(xlsx_file_path):
+    excel_file = openpyxl.load_workbook(xlsx_file_path)
+
+    sheet = excel_file.active
+    max_rows = sheet.max_row
+
+    for row_num in range(1, max_rows):
+        cell_value = sheet.cell(row=row_num, column=5).value
+        if not cell_value:
+            # print(sheet.cell(row=row_num, column=1).value)
+            system_number = sheet.cell(row=row_num, column=12).value
+            batch_name = sheet.cell(row=row_num, column=15).value
+            title = sheet.cell(row=row_num, column=16).value
+        
+            url = f"https://api.nli.org.il/openlibrary/search?api_key={USER_KEY}&query=system_number,exact,{system_number}"
+ 
+            found,book_info = api_response(url)
+            
+            if found:
+                print("found the book")
+
+                write_row(book_info, sheet,row_num, batch_name, title)
+            else:
+                print("failed to find the book")
+
+
+
+# excel_completer(r"excel/all years.xlsx")
